@@ -1,19 +1,22 @@
 #include <pebble.h>
-#include "message_keys.auto.h"
-
-// Persistent storage key
-#define SETTINGS_KEY 1
-
-// Settings structure
-static bool s_show_date_info = true;  // Default to showing date info
 
 static Window *s_window;
 static TextLayer *s_hour_layer;
 static TextLayer *s_minute_layer;
+static TextLayer *s_seconds_layer;
 static TextLayer *s_weekday_layer;
 static TextLayer *s_month_layer;
 static TextLayer *s_day_layer;
 static GFont s_time_font;
+static bool s_show_date = true; // Default to showing date
+static bool s_show_seconds = false; // Default to hiding seconds
+static GColor s_text_color;
+static GColor s_background_color;
+
+// Helper function to convert hex color string to GColor
+static GColor color_from_hex(int hex) {
+  return GColorFromHEX(hex);
+}
 
 static void update_time() {
   time_t temp = time(NULL);
@@ -21,12 +24,14 @@ static void update_time() {
 
   static char hour_buffer[4];
   static char minute_buffer[5];
+  static char seconds_buffer[4];
   static char weekday_buffer[10];
   static char month_buffer[10];
   static char day_buffer[4];
 
   strftime(hour_buffer, sizeof(hour_buffer), clock_is_24h_style() ? "%H" : "%I", tick_time);
   strftime(minute_buffer, sizeof(minute_buffer), ":%M", tick_time);
+  strftime(seconds_buffer, sizeof(seconds_buffer), "%S", tick_time);
   strftime(weekday_buffer, sizeof(weekday_buffer), "%a", tick_time);
   strftime(month_buffer, sizeof(month_buffer), "%b", tick_time);
   strftime(day_buffer, sizeof(day_buffer), "%d", tick_time);
@@ -34,18 +39,16 @@ static void update_time() {
   text_layer_set_text(s_hour_layer, hour_buffer);
   text_layer_set_text(s_minute_layer, minute_buffer);
   
-  // Show/hide date info based on settings
-  if (s_show_date_info) {
+  // Only update seconds layer if it should be shown
+  if (s_show_seconds) {
+    text_layer_set_text(s_seconds_layer, seconds_buffer);
+  }
+  
+  // Only update date layers if they should be shown
+  if (s_show_date) {
     text_layer_set_text(s_weekday_layer, weekday_buffer);
     text_layer_set_text(s_month_layer, month_buffer);
     text_layer_set_text(s_day_layer, day_buffer);
-    layer_set_hidden(text_layer_get_layer(s_weekday_layer), false);
-    layer_set_hidden(text_layer_get_layer(s_month_layer), false);
-    layer_set_hidden(text_layer_get_layer(s_day_layer), false);
-  } else {
-    layer_set_hidden(text_layer_get_layer(s_weekday_layer), true);
-    layer_set_hidden(text_layer_get_layer(s_month_layer), true);
-    layer_set_hidden(text_layer_get_layer(s_day_layer), true);
   }
 }
 
@@ -53,12 +56,87 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   update_time();
 }
 
+static void update_date_visibility() {
+  // Show or hide the date layers based on the setting
+  layer_set_hidden(text_layer_get_layer(s_weekday_layer), !s_show_date);
+  layer_set_hidden(text_layer_get_layer(s_month_layer), !s_show_date);
+  layer_set_hidden(text_layer_get_layer(s_day_layer), !s_show_date);
+}
+
+static void update_seconds_visibility() {
+  // Show or hide the seconds layer based on the setting
+  layer_set_hidden(text_layer_get_layer(s_seconds_layer), !s_show_seconds);
+}
+
+static void update_tick_timer() {
+  // Unsubscribe from existing timer
+  tick_timer_service_unsubscribe();
+  
+  // Subscribe based on whether we need seconds updates
+  if (s_show_seconds) {
+    tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
+  } else {
+    tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+  }
+}
+
+static void update_colors() {
+  // Update background color
+  window_set_background_color(s_window, s_background_color);
+  
+  // Update all text layers with the selected text color
+  text_layer_set_text_color(s_hour_layer, s_text_color);
+  text_layer_set_text_color(s_minute_layer, s_text_color);
+  text_layer_set_text_color(s_seconds_layer, s_text_color);
+  text_layer_set_text_color(s_weekday_layer, s_text_color);
+  text_layer_set_text_color(s_month_layer, s_text_color);
+  text_layer_set_text_color(s_day_layer, s_text_color);
+}
+
+static void inbox_received_handler(DictionaryIterator *iter, void *context) {
+  // Read boolean preferences
+  Tuple *show_date_t = dict_find(iter, MESSAGE_KEY_ShowDate);
+  if (show_date_t) {
+    s_show_date = show_date_t->value->int32 == 1;
+    persist_write_bool(MESSAGE_KEY_ShowDate, s_show_date);
+    update_date_visibility();
+    update_time();
+  }
+  
+  Tuple *show_seconds_t = dict_find(iter, MESSAGE_KEY_ShowSeconds);
+  if (show_seconds_t) {
+    s_show_seconds = show_seconds_t->value->int32 == 1;
+    persist_write_bool(MESSAGE_KEY_ShowSeconds, s_show_seconds);
+    update_seconds_visibility();
+    update_tick_timer(); // Update timer frequency based on seconds visibility
+    update_time();
+  }
+  
+  // Read color preferences
+  Tuple *text_color_t = dict_find(iter, MESSAGE_KEY_TextColor);
+  if (text_color_t) {
+    int text_color_hex = text_color_t->value->int32;
+    s_text_color = color_from_hex(text_color_hex);
+    persist_write_int(MESSAGE_KEY_TextColor, text_color_hex);
+    update_colors();
+  }
+  
+  Tuple *bg_color_t = dict_find(iter, MESSAGE_KEY_BackgroundColor);
+  if (bg_color_t) {
+    int bg_color_hex = bg_color_t->value->int32;
+    s_background_color = color_from_hex(bg_color_hex);
+    persist_write_int(MESSAGE_KEY_BackgroundColor, bg_color_hex);
+    update_colors();
+  }
+}
+
 static void prv_window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   // Use unobstructed bounds for Timeline Quick View support
   GRect bounds = layer_get_unobstructed_bounds(window_layer);
 
-  window_set_background_color(window, GColorBlack);
+  // Set background color (will be updated with saved color preference)
+  window_set_background_color(window, s_background_color);
 
   // Load custom font for larger time display
   s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ROBOTO_BOLD_72));
@@ -79,7 +157,7 @@ static void prv_window_load(Window *window) {
     date_row_height
   ));
   text_layer_set_background_color(s_weekday_layer, GColorClear);
-  text_layer_set_text_color(s_weekday_layer, GColorWhite);
+  text_layer_set_text_color(s_weekday_layer, s_text_color);
   text_layer_set_font(s_weekday_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
   text_layer_set_text_alignment(s_weekday_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
   layer_add_child(window_layer, text_layer_get_layer(s_weekday_layer));
@@ -92,7 +170,7 @@ static void prv_window_load(Window *window) {
     date_row_height
   ));
   text_layer_set_background_color(s_month_layer, GColorClear);
-  text_layer_set_text_color(s_month_layer, GColorWhite);
+  text_layer_set_text_color(s_month_layer, s_text_color);
   text_layer_set_font(s_month_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
   text_layer_set_text_alignment(s_month_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
   layer_add_child(window_layer, text_layer_get_layer(s_month_layer));
@@ -105,10 +183,24 @@ static void prv_window_load(Window *window) {
     date_row_height
   ));
   text_layer_set_background_color(s_day_layer, GColorClear);
-  text_layer_set_text_color(s_day_layer, GColorWhite);
+  text_layer_set_text_color(s_day_layer, s_text_color);
   text_layer_set_font(s_day_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
   text_layer_set_text_alignment(s_day_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
   layer_add_child(window_layer, text_layer_get_layer(s_day_layer));
+
+  // Seconds layer - middle left
+  int16_t seconds_height = 24;
+  s_seconds_layer = text_layer_create(GRect(
+    padding, 
+    bounds.size.h / 2 - seconds_height / 2, 
+    half_width - padding, 
+    seconds_height
+  ));
+  text_layer_set_background_color(s_seconds_layer, GColorClear);
+  text_layer_set_text_color(s_seconds_layer, s_text_color);
+  text_layer_set_font(s_seconds_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text_alignment(s_seconds_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
+  layer_add_child(window_layer, text_layer_get_layer(s_seconds_layer));
 
   // Hour layer - bottom right, above minutes (larger custom font 72px)
   s_hour_layer = text_layer_create(GRect(
@@ -118,7 +210,7 @@ static void prv_window_load(Window *window) {
     80
   ));
   text_layer_set_background_color(s_hour_layer, GColorClear);
-  text_layer_set_text_color(s_hour_layer, GColorWhite);
+  text_layer_set_text_color(s_hour_layer, s_text_color);
   text_layer_set_font(s_hour_layer, s_time_font);
   text_layer_set_text_alignment(s_hour_layer, GTextAlignmentRight);
   layer_add_child(window_layer, text_layer_get_layer(s_hour_layer));
@@ -131,74 +223,49 @@ static void prv_window_load(Window *window) {
     80
   ));
   text_layer_set_background_color(s_minute_layer, GColorClear);
-  text_layer_set_text_color(s_minute_layer, GColorWhite);
+  text_layer_set_text_color(s_minute_layer, s_text_color);
   text_layer_set_font(s_minute_layer, s_time_font);
   text_layer_set_text_alignment(s_minute_layer, GTextAlignmentRight);
   layer_add_child(window_layer, text_layer_get_layer(s_minute_layer));
 
+  // Apply the visibility settings
+  update_date_visibility();
+  update_seconds_visibility();
   update_time();
 }
 
 static void prv_window_unload(Window *window) {
   text_layer_destroy(s_hour_layer);
   text_layer_destroy(s_minute_layer);
+  text_layer_destroy(s_seconds_layer);
   text_layer_destroy(s_weekday_layer);
   text_layer_destroy(s_month_layer);
   text_layer_destroy(s_day_layer);
   fonts_unload_custom_font(s_time_font);
 }
 
-// Load settings from persistent storage
-static void load_settings() {
-  if (persist_exists(SETTINGS_KEY)) {
-    s_show_date_info = persist_read_bool(SETTINGS_KEY);
-  }
-}
-
-// Save settings to persistent storage
-static void save_settings() {
-  persist_write_bool(SETTINGS_KEY, s_show_date_info);
-}
-
-// Handle incoming messages from phone (settings)
-static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
-  Tuple *show_date_tuple = dict_find(iterator, MESSAGE_KEY_ShowDateInfo);
-  if (show_date_tuple) {
-    s_show_date_info = show_date_tuple->value->int32 == 1;
-    save_settings();
-    update_time();  // Update display immediately
-  }
-}
-
-// Handle dropped messages
-static void inbox_dropped_callback(AppMessageResult reason, void *context) {
-  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped! Reason: %d", reason);
-}
-
-// Handle failed message sends
-static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
-  APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed! Reason: %d", reason);
-}
-
-// Handle successful message sends
-static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
-}
-
 static void prv_init(void) {
-  // Load settings
-  load_settings();
+  // Load saved settings
+  if (persist_exists(MESSAGE_KEY_ShowDate)) {
+    s_show_date = persist_read_bool(MESSAGE_KEY_ShowDate);
+  }
   
-  // Register AppMessage callbacks
-  app_message_register_inbox_received(inbox_received_callback);
-  app_message_register_inbox_dropped(inbox_dropped_callback);
-  app_message_register_outbox_failed(outbox_failed_callback);
-  app_message_register_outbox_sent(outbox_sent_callback);
+  if (persist_exists(MESSAGE_KEY_ShowSeconds)) {
+    s_show_seconds = persist_read_bool(MESSAGE_KEY_ShowSeconds);
+  }
   
-  // Open AppMessage
-  const uint32_t inbound_size = 64;
-  const uint32_t outbound_size = 64;
-  app_message_open(inbound_size, outbound_size);
+  // Load saved colors or use defaults (white text on black background)
+  if (persist_exists(MESSAGE_KEY_TextColor)) {
+    s_text_color = color_from_hex(persist_read_int(MESSAGE_KEY_TextColor));
+  } else {
+    s_text_color = GColorWhite; // White
+  }
+  
+  if (persist_exists(MESSAGE_KEY_BackgroundColor)) {
+    s_background_color = color_from_hex(persist_read_int(MESSAGE_KEY_BackgroundColor));
+  } else {
+    s_background_color = GColorBlack; // Black
+  }
   
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers) {
@@ -208,7 +275,12 @@ static void prv_init(void) {
   const bool animated = true;
   window_stack_push(s_window, animated);
 
-  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+  // Subscribe to timer based on seconds visibility
+  update_tick_timer();
+  
+  // Register AppMessage handlers
+  app_message_register_inbox_received(inbox_received_handler);
+  app_message_open(128, 128);
 }
 
 static void prv_deinit(void) {

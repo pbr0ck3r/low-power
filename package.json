@@ -19,10 +19,14 @@
       "flint"
     ],
     "watchapp": {
-      "watchface": true
+      "watchface": true,
+      "configurable": true
     },
+    "capabilities": [
+      "configurable"
+    ],
     "messageKeys": [
-      "dummy"
+      "ShowDateInfo"
     ],
     "resources": {
       "media": [

@@ -1,4 +1,11 @@
 #include <pebble.h>
+#include "message_keys.auto.h"
+
+// Persistent storage key
+#define SETTINGS_KEY 1
+
+// Settings structure
+static bool s_show_date_info = true;  // Default to showing date info
 
 static Window *s_window;
 static TextLayer *s_hour_layer;
@@ -26,9 +33,20 @@ static void update_time() {
 
   text_layer_set_text(s_hour_layer, hour_buffer);
   text_layer_set_text(s_minute_layer, minute_buffer);
-  text_layer_set_text(s_weekday_layer, weekday_buffer);
-  text_layer_set_text(s_month_layer, month_buffer);
-  text_layer_set_text(s_day_layer, day_buffer);
+  
+  // Show/hide date info based on settings
+  if (s_show_date_info) {
+    text_layer_set_text(s_weekday_layer, weekday_buffer);
+    text_layer_set_text(s_month_layer, month_buffer);
+    text_layer_set_text(s_day_layer, day_buffer);
+    layer_set_hidden(text_layer_get_layer(s_weekday_layer), false);
+    layer_set_hidden(text_layer_get_layer(s_month_layer), false);
+    layer_set_hidden(text_layer_get_layer(s_day_layer), false);
+  } else {
+    layer_set_hidden(text_layer_get_layer(s_weekday_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_month_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_day_layer), true);
+  }
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
@@ -130,7 +148,58 @@ static void prv_window_unload(Window *window) {
   fonts_unload_custom_font(s_time_font);
 }
 
+// Load settings from persistent storage
+static void load_settings() {
+  if (persist_exists(SETTINGS_KEY)) {
+    s_show_date_info = persist_read_bool(SETTINGS_KEY);
+  }
+}
+
+// Save settings to persistent storage
+static void save_settings() {
+  persist_write_bool(SETTINGS_KEY, s_show_date_info);
+}
+
+// Handle incoming messages from phone (settings)
+static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
+  Tuple *show_date_tuple = dict_find(iterator, MESSAGE_KEY_ShowDateInfo);
+  if (show_date_tuple) {
+    s_show_date_info = show_date_tuple->value->int32 == 1;
+    save_settings();
+    update_time();  // Update display immediately
+  }
+}
+
+// Handle dropped messages
+static void inbox_dropped_callback(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped! Reason: %d", reason);
+}
+
+// Handle failed message sends
+static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed! Reason: %d", reason);
+}
+
+// Handle successful message sends
+static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
+}
+
 static void prv_init(void) {
+  // Load settings
+  load_settings();
+  
+  // Register AppMessage callbacks
+  app_message_register_inbox_received(inbox_received_callback);
+  app_message_register_inbox_dropped(inbox_dropped_callback);
+  app_message_register_outbox_failed(outbox_failed_callback);
+  app_message_register_outbox_sent(outbox_sent_callback);
+  
+  // Open AppMessage
+  const uint32_t inbound_size = 64;
+  const uint32_t outbound_size = 64;
+  app_message_open(inbound_size, outbound_size);
+  
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,

@@ -1,0 +1,38 @@
+{
+  "name": "low-power",
+  "author": "pbr0ck3r",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "low-power",
+    "uuid": "7c3e2294-1800-4bba-9416-fb3b52aefb44",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery",
+      "flint"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "dummy"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "font",
+          "name": "FONT_ROBOTO_BOLD_72",
+          "file": "fonts/roboto-bold.ttf",
+          "characterRegex": "[0-9:]"
+        }
+      ]
+    }
+  }
+}

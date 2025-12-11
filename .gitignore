@@ -8,6 +8,7 @@
 # Build output
 build/
 *.pbw
+.lock-waf_darwin_build
 
 # Editor files
 .vscode/

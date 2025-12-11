@@ -2,11 +2,11 @@
   "name": "low-power",
   "author": "pbr0ck3r",
   "version": "1.0.0",
-  "keywords": ["pebble-app"],
+  "keywords": ["low-power", "low power"],
   "private": true,
   "dependencies": {},
   "pebble": {
-    "displayName": "low-power",
+    "displayName": "Low Power",
     "uuid": "7c3e2294-1800-4bba-9416-fb3b52aefb44",
     "sdkVersion": "3",
     "enableMultiJS": true,

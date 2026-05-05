@@ -138,16 +138,28 @@ static void prv_window_load(Window *window) {
   // Set background color (will be updated with saved color preference)
   window_set_background_color(window, s_background_color);
 
-  // Load custom font for larger time display
+  // Load custom font - larger on Pebble Time 2 (emery) for its bigger screen
+#if defined(PBL_PLATFORM_EMERY)
+  s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ROBOTO_BOLD_74));
+  int16_t time_layer_height = 84;
+  int16_t date_row_height = 22;
+  int16_t date_spacing = 18;
+  int16_t seconds_height = 28;
+  GFont date_font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  GFont seconds_font = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+#else
   s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ROBOTO_BOLD_72));
-
-  // Calculate proportional sizes - avoid hardcoded values per best practices
-  int16_t padding = PBL_IF_ROUND_ELSE(bounds.size.w / 10, 5);
+  int16_t time_layer_height = 80;
   int16_t date_row_height = 18;
+  int16_t date_spacing = 14;
+  int16_t seconds_height = 24;
+  GFont date_font = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
+  GFont seconds_font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+#endif
+
+  int16_t padding = PBL_IF_ROUND_ELSE(bounds.size.w / 10, 5);
   int16_t half_width = bounds.size.w / 2;
   int16_t date_start_y = PBL_IF_ROUND_ELSE(bounds.size.h / 6, 0);
-
-  int16_t date_spacing = 14;  // Tighter spacing between date rows
 
   // Weekday layer - top left
   s_weekday_layer = text_layer_create(GRect(
@@ -158,56 +170,60 @@ static void prv_window_load(Window *window) {
   ));
   text_layer_set_background_color(s_weekday_layer, GColorClear);
   text_layer_set_text_color(s_weekday_layer, s_text_color);
-  text_layer_set_font(s_weekday_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
+  text_layer_set_font(s_weekday_layer, date_font);
   text_layer_set_text_alignment(s_weekday_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
   layer_add_child(window_layer, text_layer_get_layer(s_weekday_layer));
 
   // Month layer - below weekday
   s_month_layer = text_layer_create(GRect(
-    padding, 
-    date_start_y + date_spacing, 
-    half_width - padding, 
+    padding,
+    date_start_y + date_spacing,
+    half_width - padding,
     date_row_height
   ));
   text_layer_set_background_color(s_month_layer, GColorClear);
   text_layer_set_text_color(s_month_layer, s_text_color);
-  text_layer_set_font(s_month_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
+  text_layer_set_font(s_month_layer, date_font);
   text_layer_set_text_alignment(s_month_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
   layer_add_child(window_layer, text_layer_get_layer(s_month_layer));
 
   // Day layer - below month
   s_day_layer = text_layer_create(GRect(
-    padding, 
-    date_start_y + date_spacing * 2, 
-    half_width - padding, 
+    padding,
+    date_start_y + date_spacing * 2,
+    half_width - padding,
     date_row_height
   ));
   text_layer_set_background_color(s_day_layer, GColorClear);
   text_layer_set_text_color(s_day_layer, s_text_color);
-  text_layer_set_font(s_day_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
+  text_layer_set_font(s_day_layer, date_font);
   text_layer_set_text_alignment(s_day_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
   layer_add_child(window_layer, text_layer_get_layer(s_day_layer));
 
   // Seconds layer - middle left
-  int16_t seconds_height = 24;
   s_seconds_layer = text_layer_create(GRect(
-    padding, 
-    bounds.size.h / 2 - seconds_height / 2, 
-    half_width - padding, 
+    padding,
+    bounds.size.h / 2 - seconds_height / 2,
+    half_width - padding,
     seconds_height
   ));
   text_layer_set_background_color(s_seconds_layer, GColorClear);
   text_layer_set_text_color(s_seconds_layer, s_text_color);
-  text_layer_set_font(s_seconds_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_font(s_seconds_layer, seconds_font);
   text_layer_set_text_alignment(s_seconds_layer, PBL_IF_ROUND_ELSE(GTextAlignmentCenter, GTextAlignmentLeft));
   layer_add_child(window_layer, text_layer_get_layer(s_seconds_layer));
 
-  // Hour layer - bottom right, above minutes (larger custom font 72px)
+  // Anchor time to bottom of screen
+  int16_t time_bottom_padding = 5;
+  int16_t minute_y = bounds.size.h - time_layer_height - time_bottom_padding;
+  int16_t hour_y = minute_y - time_layer_height;
+
+  // Hour layer - above minutes
   s_hour_layer = text_layer_create(GRect(
-    0, 
-    bounds.size.h / 2 - 80 + PBL_IF_ROUND_ELSE(10, 0), 
-    bounds.size.w - padding, 
-    80
+    0,
+    hour_y,
+    bounds.size.w - padding,
+    time_layer_height
   ));
   text_layer_set_background_color(s_hour_layer, GColorClear);
   text_layer_set_text_color(s_hour_layer, s_text_color);
@@ -215,12 +231,12 @@ static void prv_window_load(Window *window) {
   text_layer_set_text_alignment(s_hour_layer, GTextAlignmentRight);
   layer_add_child(window_layer, text_layer_get_layer(s_hour_layer));
 
-  // Minute layer - bottom right (wider to fit colon, larger custom font 72px)
+  // Minute layer - bottom right (wider to fit colon)
   s_minute_layer = text_layer_create(GRect(
-    0, 
-    bounds.size.h / 2 - 5 + PBL_IF_ROUND_ELSE(5, 0), 
-    bounds.size.w - padding, 
-    80
+    0,
+    minute_y,
+    bounds.size.w - padding,
+    time_layer_height
   ));
   text_layer_set_background_color(s_minute_layer, GColorClear);
   text_layer_set_text_color(s_minute_layer, s_text_color);

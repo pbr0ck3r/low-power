@@ -1,8 +1,11 @@
 {
   "name": "low-power",
   "author": "pbr0ck3r",
-  "version": "1.0.0",
-  "keywords": ["low-power", "low power"],
+  "version": "1.1.1",
+  "keywords": [
+    "low-power",
+    "low power"
+  ],
   "private": true,
   "dependencies": {},
   "pebble": {
@@ -35,6 +38,12 @@
         {
           "type": "font",
           "name": "FONT_ROBOTO_BOLD_72",
+          "file": "fonts/roboto-bold.ttf",
+          "characterRegex": "[0-9:]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ROBOTO_BOLD_74",
           "file": "fonts/roboto-bold.ttf",
           "characterRegex": "[0-9:]"
         }

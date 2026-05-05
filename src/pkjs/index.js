@@ -38,8 +38,15 @@ function getConfigHTML() {
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<title>Low Power Configuration</title>' +
     '<style>' +
-    'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }' +
-    '.container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 20px; }' +
+    'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding-top: 56px; background-color: #f5f5f5; }' +
+    '.nav-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: #f8f8f8; border-bottom: 1px solid #ddd; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }' +
+    '.nav-title { font-size: 17px; font-weight: 600; color: #333; }' +
+    '.nav-actions { display: flex; gap: 8px; align-items: center; }' +
+    '.nav-btn { background: none; border: none; font-size: 15px; cursor: pointer; padding: 6px 8px; border-radius: 6px; }' +
+    '.nav-btn-cancel { color: #666; }' +
+    '.nav-btn-reset { color: #FF6B35; }' +
+    '.nav-btn-save { color: #4CAF50; font-weight: 700; }' +
+    '.container { max-width: 600px; margin: 12px auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 20px; }' +
     'h1 { margin-top: 0; color: #333; font-size: 24px; }' +
     'h2 { color: #555; font-size: 18px; margin-top: 20px; margin-bottom: 10px; }' +
     '.setting-item { padding: 15px 0; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }' +
@@ -56,20 +63,24 @@ function getConfigHTML() {
     '.color-option { width: 100%; padding-top: 100%; position: relative; border-radius: 8px; cursor: pointer; border: 3px solid transparent; transition: all 0.2s; }' +
     '.color-option.selected { border-color: #4CAF50; box-shadow: 0 0 0 2px #4CAF50; }' +
     '.color-option:active { transform: scale(0.95); }' +
-    '.save-button { width: 100%; padding: 12px; background-color: #4CAF50; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 20px; }' +
-    '.save-button:active { background-color: #45a049; }' +
     '</style>' +
     '</head><body>' +
+    '<div class="nav-bar">' +
+    '  <span class="nav-title">Low Power</span>' +
+    '  <div class="nav-actions" id="navActions">' +
+    '    <button class="nav-btn nav-btn-cancel" onclick="cancelSettings()">Cancel</button>' +
+    '  </div>' +
+    '</div>' +
     '<div class="container">' +
-    '<h1>Low Power Settings</h1>' +
-    
+    '<h1>Settings</h1>' +
+
     '<div class="setting-item">' +
     '<div>' +
     '<div class="setting-label">Show Date</div>' +
     '<div class="setting-description">Display weekday, month, and day</div>' +
     '</div>' +
     '<label class="toggle-switch">' +
-    '<input type="checkbox" id="showDate" ' + dateChecked + '>' +
+    '<input type="checkbox" id="showDate" ' + dateChecked + ' onchange="checkForChanges()">' +
     '<span class="slider"></span>' +
     '</label>' +
     '</div>' +
@@ -80,7 +91,7 @@ function getConfigHTML() {
     '<div class="setting-description">Display seconds on middle left</div>' +
     '</div>' +
     '<label class="toggle-switch">' +
-    '<input type="checkbox" id="showSeconds" ' + secondsChecked + '>' +
+    '<input type="checkbox" id="showSeconds" ' + secondsChecked + ' onchange="checkForChanges()">' +
     '<span class="slider"></span>' +
     '</label>' +
     '</div>' +
@@ -97,7 +108,6 @@ function getConfigHTML() {
       '</div>'
     ) +
     
-    '<button class="save-button" onclick="saveSettings()">Save Settings</button>' +
     '</div>' +
     
     '<script>' +
@@ -116,7 +126,38 @@ function getConfigHTML() {
     'var selectedTextColor = "' + textColor + '";' +
     'var selectedBgColor = "' + bgColor + '";' +
     'var supportsColor = ' + supportsColor + ';' +
-    
+    'var initialState = { showDate: ' + (dateChecked ? 'true' : 'false') + ', showSeconds: ' + (secondsChecked ? 'true' : 'false') + ', textColor: "' + textColor + '", bgColor: "' + bgColor + '" };' +
+
+    'function checkForChanges() {' +
+    '  var hasChanges = ' +
+    '    document.getElementById("showDate").checked !== initialState.showDate ||' +
+    '    document.getElementById("showSeconds").checked !== initialState.showSeconds ||' +
+    '    selectedTextColor !== initialState.textColor ||' +
+    '    selectedBgColor !== initialState.bgColor;' +
+    '  var el = document.getElementById("navActions");' +
+    '  if (hasChanges) {' +
+    '    el.innerHTML = \'<button class="nav-btn nav-btn-reset" onclick="resetChanges()">Reset Changes</button><button class="nav-btn nav-btn-save" onclick="saveSettings()">Save</button>\';' +
+    '  } else {' +
+    '    el.innerHTML = \'<button class="nav-btn nav-btn-cancel" onclick="cancelSettings()">Cancel</button>\';' +
+    '  }' +
+    '}' +
+
+    'function resetChanges() {' +
+    '  document.getElementById("showDate").checked = initialState.showDate;' +
+    '  document.getElementById("showSeconds").checked = initialState.showSeconds;' +
+    '  selectedTextColor = initialState.textColor;' +
+    '  selectedBgColor = initialState.bgColor;' +
+    '  if (supportsColor) {' +
+    '    document.getElementById("textColorGrid").innerHTML = "";' +
+    '    document.getElementById("bgColorGrid").innerHTML = "";' +
+    '    createColorGrid("textColorGrid", selectedTextColor, "text");' +
+    '    createColorGrid("bgColorGrid", selectedBgColor, "bg");' +
+    '  }' +
+    '  checkForChanges();' +
+    '}' +
+
+    'function cancelSettings() { document.location = "pebblejs://close"; }' +
+
     'function createColorGrid(gridId, selectedColor, varName) {' +
     '  var grid = document.getElementById(gridId);' +
     '  if (!grid) return;' +
@@ -131,16 +172,17 @@ function getConfigHTML() {
     '      div.classList.add("selected");' +
     '      if (varName === "text") { selectedTextColor = color.name; }' +
     '      else { selectedBgColor = color.name; }' +
+    '      checkForChanges();' +
     '    };' +
     '    grid.appendChild(div);' +
     '  });' +
     '}' +
-    
+
     'if (supportsColor) {' +
     '  createColorGrid("textColorGrid", selectedTextColor, "text");' +
     '  createColorGrid("bgColorGrid", selectedBgColor, "bg");' +
     '}' +
-    
+
     'function saveSettings() {' +
     '  var settings = { ' +
     '    showDate: document.getElementById("showDate").checked.toString(), ' +
@@ -150,8 +192,7 @@ function getConfigHTML() {
     '    settings.textColor = selectedTextColor;' +
     '    settings.bgColor = selectedBgColor;' +
     '  }' +
-    '  var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(settings));' +
-    '  document.location = location;' +
+    '  document.location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(settings));' +
     '}' +
     '</script>' +
     '</body></html>';

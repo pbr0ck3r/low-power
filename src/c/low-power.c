@@ -31,9 +31,8 @@ static void main_layer_draw(Layer *layer, GContext *ctx) {
   // Time: two large right-aligned digits stacked at bottom
   int16_t em_height = (bounds.size.h - 10) / 2;
   fctx_set_text_em_height(&fctx, s_font, em_height);
-  bool is_large = bounds.size.h >= 200;
-  int16_t right_pad = is_large ? bounds.size.w / 20 : 0;
-  int16_t bottom_pad = is_large ? bounds.size.h / 20 : 5;
+  int16_t right_pad = bounds.size.w / 20;
+  int16_t bottom_pad = bounds.size.h / 20;
   int16_t minute_y = bounds.size.h - bottom_pad;
   int16_t hour_y = minute_y - em_height;
 
